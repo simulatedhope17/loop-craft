@@ -8,12 +8,35 @@ import { Button } from "@/components/ui/button"
 import { Volume2, VolumeX, Volume1, VibrateOffIcon as VolumeOff, Settings2Icon } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Switch } from "@/components/ui/switch"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { ChevronDown, ChevronUp } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Slider } from "@/components/ui/slider"
+
+interface CircularSliderProps {
+  value: number
+  onChange: (value: number) => void
+  size?: number
+  strokeWidth?: number
+  label: string
+  unit?: string
+  icon?: React.ReactNode
+}
 
 export default function Workspace() {
-  const { masterVolume, setMasterVolume, isPlaying, selectedTrackId, tracks, updateTrackVolume, updateTrackEffects } =
+  const { masterVolume, setMasterVolume, isPlaying, selectedTrackId, tracks, updateTrackVolume, updateTrackEffects, tempo, setTempo } =
     useAudioContext()
   const [isMuted, setIsMuted] = useState(false)
   const [previousVolume, setPreviousVolume] = useState(1)
+  const isMobile = useIsMobile()
+  const [isMenuCollapsed, setIsMenuCollapsed] = useState(true)
+
+  console.log('Workspace render: isMobile =', isMobile, ', isMenuCollapsed =', isMenuCollapsed);
+
+  const toggleMenu = () => {
+    setIsMenuCollapsed(!isMenuCollapsed)
+  }
 
   const handleMuteToggle = () => {
     if (isMuted) {
@@ -26,13 +49,13 @@ export default function Workspace() {
     }
   }
 
-  const CircularSlider = ({ value, onChange, size = 40, strokeWidth = 4, label, unit = "%", icon = null }) => {
+  const CircularSlider = ({ value, onChange, size = 40, strokeWidth = 4, label, unit = "%", icon = null }: CircularSliderProps) => {
     const [isDragging, setIsDragging] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
     const [isTouching, setIsTouching] = useState(false)
     const [lastValue, setLastValue] = useState(value)
-    const sliderRef = useRef(null)
-    const audioRef = useRef(null)
+    const sliderRef = useRef<HTMLDivElement>(null)
+    const audioRef = useRef<HTMLAudioElement>(null)
 
     const radius = (size - strokeWidth * 2) / 2
     const circumference = radius * 2 * Math.PI
@@ -47,13 +70,13 @@ export default function Workspace() {
       }
     }
 
-    const getAngleFromEvent = (event, rect) => {
+    const getAngleFromEvent = (event: MouseEvent | TouchEvent, rect: DOMRect) => {
       const centerX = rect.left + rect.width / 2
       const centerY = rect.top + rect.height / 2
 
       // Handle both mouse and touch events
-      const clientX = event.touches ? event.touches[0].clientX : event.clientX
-      const clientY = event.touches ? event.touches[0].clientY : event.clientY
+      const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
+      const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY
 
       // Calculate angle from center to cursor/touch point
       const deltaX = clientX - centerX
@@ -69,25 +92,27 @@ export default function Workspace() {
       return Math.max(0, Math.min(100, percentage))
     }
 
-    const handleStart = (event) => {
+    const handleStart = (event: React.MouseEvent | React.TouchEvent) => {
       event.preventDefault()
       setIsDragging(true)
-      setIsTouching(event.type.includes("touch"))
+      setIsTouching('touches' in event)
 
-      const rect = sliderRef.current.getBoundingClientRect()
-      const newValue = getAngleFromEvent(event, rect)
-      onChange(newValue)
-      setLastValue(newValue)
+      if (sliderRef.current) {
+        const rect = sliderRef.current.getBoundingClientRect()
+        const newValue = getAngleFromEvent(event.nativeEvent, rect)
+        onChange(newValue)
+        setLastValue(newValue)
 
-      // Haptic and audio feedback
-      if (navigator.vibrate && event.type.includes("touch")) {
-        navigator.vibrate(15)
+        // Haptic and audio feedback
+        if (navigator.vibrate && 'touches' in event) {
+          navigator.vibrate(15)
+        }
+        playClickSound()
       }
-      playClickSound()
     }
 
-    const handleMove = (event) => {
-      if (!isDragging) return
+    const handleMove = (event: MouseEvent | TouchEvent) => {
+      if (!isDragging || !sliderRef.current) return
       event.preventDefault()
 
       const rect = sliderRef.current.getBoundingClientRect()
@@ -113,12 +138,12 @@ export default function Workspace() {
       }
     }
 
-    const handleTapToJump = (event) => {
-      if (isDragging) return
+    const handleTapToJump = (event: React.MouseEvent | React.TouchEvent) => {
+      if (isDragging || !sliderRef.current) return
       event.preventDefault()
 
       const rect = sliderRef.current.getBoundingClientRect()
-      const newValue = getAngleFromEvent(event, rect)
+      const newValue = getAngleFromEvent(event.nativeEvent, rect)
       onChange(newValue)
       setLastValue(newValue)
 
@@ -129,7 +154,7 @@ export default function Workspace() {
       playClickSound()
     }
 
-    const handleWheel = (event) => {
+    const handleWheel = (event: React.WheelEvent) => {
       if (!isHovered) return
       event.preventDefault()
 
@@ -145,9 +170,9 @@ export default function Workspace() {
     // Add global event listeners when dragging
     useEffect(() => {
       if (isDragging) {
-        const handleMouseMove = (e) => handleMove(e)
+        const handleMouseMove = (e: MouseEvent) => handleMove(e)
         const handleMouseUp = () => handleEnd()
-        const handleTouchMove = (e) => handleMove(e)
+        const handleTouchMove = (e: TouchEvent) => handleMove(e)
         const handleTouchEnd = () => handleEnd()
 
         document.addEventListener("mousemove", handleMouseMove)
@@ -389,391 +414,111 @@ export default function Workspace() {
   }
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden">
-      {/* Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-secondary/5 pointer-events-none" />
-
-      <div className="flex-1 container py-6 flex flex-col relative z-10">
-        <div className="grid grid-cols-[auto_1fr] gap-6 flex-1">
-          {/* Sliding Settings Menu */}
-          <motion.div
-            className="bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl shadow-xl border border-white/10 overflow-hidden"
-            initial={{ opacity: 0, x: -20, width: 0 }}
-            animate={{
-              opacity: selectedTrackId ? 1 : 0.7,
-              x: 0,
-              width: selectedTrackId ? "280px" : "60px",
-            }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-          >
-            <div className="h-full flex flex-col bg-gradient-to-b from-black/40 to-black/10 backdrop-blur-md">
-              {selectedTrackId ? (
-                // Unified Track Settings Interface
-                <div className="h-full flex flex-col overflow-hidden">
-                  <div className="p-3 border-b border-white/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-primary"></div>
-                        <h3 className="font-semibold text-xs">
-                          Track {tracks.findIndex((t) => t.id === selectedTrackId) + 1} Settings
-                        </h3>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto p-3 space-y-4">
-                    {(() => {
-                      const track = tracks.find((t) => t.id === selectedTrackId)
-                      if (!track) return null
-
-                      return (
-                        <>
-                          {/* Volume Control */}
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-medium text-muted-foreground border-b border-white/5 pb-1">
-                              Volume
-                            </h4>
-                            <CircularSlider
-                              value={track.volume * 100}
-                              onChange={(value) => updateTrackVolume(selectedTrackId!, value / 100)}
-                              label="Track Volume"
-                              size={50}
-                              icon={<Volume2 className="h-4 w-4" />}
-                            />
-                          </div>
-
-                          {/* Effects Section */}
-                          <div className="space-y-3">
-                            <h4 className="text-xs font-medium text-muted-foreground border-b border-white/5 pb-1">
-                              Effects
-                            </h4>
-
-                            {/* Reverb */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs">Reverb</span>
-                                <Switch
-                                  checked={track.effects.reverb.enabled}
-                                  onCheckedChange={(checked) =>
-                                    updateTrackEffects(selectedTrackId!, {
-                                      ...track.effects,
-                                      reverb: { ...track.effects.reverb, enabled: checked },
-                                    })
-                                  }
-                                  className="scale-75"
-                                />
-                              </div>
-                              {track.effects.reverb.enabled && (
-                                <motion.div
-                                  className="grid grid-cols-2 gap-2"
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <CircularSlider
-                                    value={track.effects.reverb.wet * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        reverb: { ...track.effects.reverb, wet: value / 100 },
-                                      })
-                                    }
-                                    label="Wet"
-                                    size={35}
-                                  />
-                                  <CircularSlider
-                                    value={track.effects.reverb.decay * 10}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        reverb: { ...track.effects.reverb, decay: value / 10 },
-                                      })
-                                    }
-                                    label="Decay"
-                                    unit="s"
-                                    size={35}
-                                  />
-                                </motion.div>
-                              )}
-                            </div>
-
-                            {/* Delay */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs">Delay</span>
-                                <Switch
-                                  checked={track.effects.delay.enabled}
-                                  onCheckedChange={(checked) =>
-                                    updateTrackEffects(selectedTrackId!, {
-                                      ...track.effects,
-                                      delay: { ...track.effects.delay, enabled: checked },
-                                    })
-                                  }
-                                  className="scale-75"
-                                />
-                              </div>
-                              {track.effects.delay.enabled && (
-                                <motion.div
-                                  className="grid grid-cols-2 gap-2"
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <CircularSlider
-                                    value={track.effects.delay.time * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        delay: { ...track.effects.delay, time: value / 100 },
-                                      })
-                                    }
-                                    label="Time"
-                                    unit="ms"
-                                    size={35}
-                                  />
-                                  <CircularSlider
-                                    value={track.effects.delay.feedback * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        delay: { ...track.effects.delay, feedback: value / 100 },
-                                      })
-                                    }
-                                    label="Feedback"
-                                    size={35}
-                                  />
-                                </motion.div>
-                              )}
-                            </div>
-
-                            {/* EQ */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs">EQ</span>
-                                <Switch
-                                  checked={track.effects.eq.enabled}
-                                  onCheckedChange={(checked) =>
-                                    updateTrackEffects(selectedTrackId!, {
-                                      ...track.effects,
-                                      eq: { ...track.effects.eq, enabled: checked },
-                                    })
-                                  }
-                                  className="scale-75"
-                                />
-                              </div>
-                              {track.effects.eq.enabled && (
-                                <motion.div
-                                  className="grid grid-cols-3 gap-1"
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <CircularSlider
-                                    value={((track.effects.eq.low + 12) / 24) * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        eq: { ...track.effects.eq, low: (value / 100) * 24 - 12 },
-                                      })
-                                    }
-                                    label="Low"
-                                    unit="dB"
-                                    size={30}
-                                  />
-                                  <CircularSlider
-                                    value={((track.effects.eq.mid + 12) / 24) * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        eq: { ...track.effects.eq, mid: (value / 100) * 24 - 12 },
-                                      })
-                                    }
-                                    label="Mid"
-                                    unit="dB"
-                                    size={30}
-                                  />
-                                  <CircularSlider
-                                    value={((track.effects.eq.high + 12) / 24) * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        eq: { ...track.effects.eq, high: (value / 100) * 24 - 12 },
-                                      })
-                                    }
-                                    label="High"
-                                    unit="dB"
-                                    size={30}
-                                  />
-                                </motion.div>
-                              )}
-                            </div>
-
-                            {/* Distortion */}
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs">Distortion</span>
-                                <Switch
-                                  checked={track.effects.distortion.enabled}
-                                  onCheckedChange={(checked) =>
-                                    updateTrackEffects(selectedTrackId!, {
-                                      ...track.effects,
-                                      distortion: { ...track.effects.distortion, enabled: checked },
-                                    })
-                                  }
-                                  className="scale-75"
-                                />
-                              </div>
-                              {track.effects.distortion.enabled && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <CircularSlider
-                                    value={track.effects.distortion.amount * 100}
-                                    onChange={(value) =>
-                                      updateTrackEffects(selectedTrackId!, {
-                                        ...track.effects,
-                                        distortion: { ...track.effects.distortion, amount: value / 100 },
-                                      })
-                                    }
-                                    label="Amount"
-                                    size={40}
-                                  />
-                                </motion.div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Master Controls */}
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-medium text-muted-foreground border-b border-white/5 pb-1">
-                              Master
-                            </h4>
-                            <div className="flex items-center justify-between">
-                              <CircularSlider
-                                value={masterVolume * 100}
-                                onChange={(value) => setMasterVolume(value / 100)}
-                                label="Master Volume"
-                                size={45}
-                              />
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleMuteToggle}
-                                className="h-8 w-8 hover:bg-white/10"
-                              >
-                                {isMuted || masterVolume === 0 ? (
-                                  <VolumeX className="h-4 w-4" />
-                                ) : (
-                                  <Volume2 className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        </>
-                      )
-                    })()}
-                  </div>
-                </div>
-              ) : (
-                // Collapsed Global Settings (keep existing content)
-                <div className="p-2 flex flex-col items-center justify-between h-full">
-                  <div className="flex flex-col items-center gap-2 pt-2">
-                    <Settings2Icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground rotate-90 origin-center transform translate-y-6">
-                      Settings
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-center gap-2 flex-1 justify-center">
-                    <Volume2 className="h-3 w-3 text-muted-foreground" />
-                    <div className="h-24 w-1 bg-white/10 rounded-full relative">
-                      <motion.div
-                        className="absolute bottom-0 w-full bg-gradient-to-t from-primary to-primary/50 rounded-full"
-                        style={{ height: `${masterVolume * 100}%` }}
-                        initial={{ height: 0 }}
-                        animate={{ height: `${masterVolume * 100}%` }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        {/* Animated glow effect */}
-                        <motion.div
-                          className="absolute inset-0 bg-gradient-to-t from-transparent via-white/20 to-transparent"
-                          animate={{ y: ["-100%", "100%"] }}
-                          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-                        />
-                      </motion.div>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">{Math.round(masterVolume * 100)}</span>
-                  </div>
-
-                  <div className="pb-2">
-                    <div className="h-1 w-8 bg-white/10 rounded-full my-2"></div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </motion.div>
-
-          {/* Main Content Area */}
-          <div className="flex flex-col space-y-6">
-            {/* Track List */}
-            <motion.div
-              className="bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/10 flex-1"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <TrackList />
-            </motion.div>
-
-            {/* Transport Controls */}
-            <motion.div
-              className="bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-xl rounded-2xl p-6 shadow-xl border border-white/10"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            >
-              <TransportControls />
-            </motion.div>
-          </div>
+    <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
+      {/* Main content area */}
+      <div className={cn("flex-1 flex flex-col gap-4 min-h-0 p-4", isMobile && !isMenuCollapsed ? "pb-56" : "pb-24")}>
+        <div className="flex-1 overflow-auto">
+          <TrackList />
         </div>
       </div>
 
-      {/* Global Progress Bar */}
-      <motion.div
-        className="bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 border-t border-primary/20 transition-all duration-300 ease-in-out relative overflow-hidden"
-        animate={{
-          height: isPlaying ? "4px" : "0px",
-          borderTopWidth: isPlaying ? "1px" : "0px",
-        }}
-        transition={{ duration: 0.3 }}
-      >
-        <motion.div
-          className="bg-gradient-to-r from-primary via-primary/80 to-primary h-full"
-          animate={{
-            width: isPlaying ? "100%" : "0%",
-          }}
-          transition={{
-            duration: isPlaying ? 4 : 0.3,
-            repeat: isPlaying ? Number.POSITIVE_INFINITY : 0,
-            ease: "linear",
-          }}
-        />
+      {/* Controls panel */} 
+      {isMobile ? (
+        /* Mobile fixed bottom menu */
+        <div className={
+          cn(
+            'fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t p-2 transition-transform duration-300 ease-in-out z-50 flex flex-col',
+            isMenuCollapsed ? 'translate-y-[calc(100%-64px)]' : 'translate-y-0' // Use a fixed pixel value for collapsed height
+          )
+        }>
+          {/* Transport controls - always visible part */}
+          <div className="flex items-center justify-between h-16 w-full">
+            <TransportControls />
+            <Button variant="ghost" size="icon" onClick={toggleMenu} className="ml-2 text-primary">
+              {isMenuCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+          
+          {/* Collapsible menu content (Master Settings) */}
+          <AnimatePresence>
+            {!isMenuCollapsed && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                className="mt-4 space-y-4 pb-4 overflow-y-auto"
+              >
+                {/* Tempo Control */}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-semibold w-16 text-center">
+                    <div className="text-xs text-muted-foreground mb-1">TEMPO</div>
+                    <div className="text-lg">{tempo}</div>
+                  </div>
 
-        {/* Glow effect */}
-        {isPlaying && (
-          <motion.div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-            animate={{ x: ["-100%", "100%"] }}
-            transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-          />
-        )}
-      </motion.div>
+                  <div className="flex-1 space-y-2">
+                    <Slider
+                      value={[tempo]}
+                      min={40}
+                      max={240}
+                      step={1}
+                      onValueChange={(value) => setTempo(value[0])}
+                      className="w-full"
+                    />
+
+                    {/* Tempo Markers */}
+                    <div className="flex justify-between text-xs text-muted-foreground px-1">
+                      <span>40</span>
+                      <span>120</span>
+                      <span>240</span>
+                    </div>
+                  </div>
+
+                  <div className="text-sm font-medium w-16 text-center">
+                    <div className="text-xs text-muted-foreground">BPM</div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ) : (
+        /* Desktop fixed bottom menu */
+        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t p-2 z-50 flex items-center justify-between px-6">
+          <TransportControls />
+          {/* Tempo Control */}
+          <div className="flex items-center gap-4 w-64">
+            <div className="text-sm font-semibold w-16 text-center">
+              <div className="text-xs text-muted-foreground mb-1">TEMPO</div>
+              <div className="text-lg">{tempo}</div>
+            </div>
+
+            <div className="flex-1 space-y-2">
+              {/* Need to read tempo state and setTempo function from context in Workspace.tsx */}
+              {/* For now, placeholder or pass from context */}
+              <Slider
+                value={[tempo]}
+                min={40}
+                max={240}
+                step={1}
+                onValueChange={(value) => setTempo(value[0])}
+                className="w-full"
+              />
+
+              {/* Tempo Markers */}
+              <div className="flex justify-between text-xs text-muted-foreground px-1">
+                <span>40</span>
+                <span>120</span>
+                <span>240</span>
+              </div>
+            </div>
+
+            <div className="text-sm font-medium w-16 text-center">
+              <div className="text-xs text-muted-foreground">BPM</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

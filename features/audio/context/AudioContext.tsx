@@ -60,9 +60,6 @@ export function AudioProvider({ children }: AudioProviderProps) {
         const context = new AudioContext()
         setAudioContext(context)
 
-        // Add initial track
-        addTrack()
-
         return () => {
           if (context && context.state !== "closed") {
             context.close()
@@ -77,7 +74,7 @@ export function AudioProvider({ children }: AudioProviderProps) {
         })
       }
     }
-  }, [])
+  }, [toast])
 
   // Save state to history when tracks change
   useEffect(() => {

@@ -212,38 +212,6 @@ export default function TransportControls() {
           </div>
         </div>
       </div>
-
-      {/* Tempo Control */}
-      <div className="bg-white/5 backdrop-blur-sm border border-white/20 rounded-2xl p-4">
-        <div className="flex items-center gap-4">
-          <div className="text-sm font-semibold w-16 text-center">
-            <div className="text-xs text-muted-foreground mb-1">TEMPO</div>
-            <div className="text-lg">{tempo}</div>
-          </div>
-
-          <div className="flex-1 space-y-2">
-            <Slider
-              value={[tempo]}
-              min={40}
-              max={240}
-              step={1}
-              onValueChange={(value) => setTempo(value[0])}
-              className="w-full"
-            />
-
-            {/* Tempo Markers */}
-            <div className="flex justify-between text-xs text-muted-foreground px-1">
-              <span>40</span>
-              <span>120</span>
-              <span>240</span>
-            </div>
-          </div>
-
-          <div className="text-sm font-medium w-16 text-center">
-            <div className="text-xs text-muted-foreground">BPM</div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

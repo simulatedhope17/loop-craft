@@ -5,7 +5,7 @@ import { PlusIcon } from "lucide-react"
 import { useAudioContext } from "@/features/audio/context/AudioContext"
 import { motion, AnimatePresence } from "framer-motion"
 
-export default function TrackList() {
+export default function TrackList({ className }: { className?: string }) {
   const { tracks, addTrack, isPlaying, togglePlayback } = useAudioContext()
 
   return (
@@ -98,7 +98,7 @@ export default function TrackList() {
       ) : (
         <div className="space-y-6">
           {/* Track Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-8 justify-items-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-y-3 gap-x-6">
             <AnimatePresence mode="popLayout">
               {tracks.map((track, index) => (
                 <motion.div

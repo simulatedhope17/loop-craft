@@ -7,6 +7,11 @@ import { useAudioContext } from "@/features/audio/context/AudioContext"
 import type { Track as TrackType } from "@/features/audio/types"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 interface TrackProps {
   track: TrackType
@@ -31,7 +36,8 @@ export default function Track({ track, index }: TrackProps) {
   const [isTrackPlaying, setIsTrackPlaying] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | undefined>(undefined)
+  const isMobile = useIsMobile()
 
   const [isEditingName, setIsEditingName] = useState(false)
   const [tempName, setTempName] = useState(`${index + 1}`)
@@ -189,11 +195,11 @@ export default function Track({ track, index }: TrackProps) {
     })
   }
 
-  const handleNameUpdate = (newName: string) => {
+  const handleNameUpdate = (newName: string | undefined) => {
     // You'll need to add updateTrackName to your AudioContext
     // For now, we'll store it in the track object
     // updateTrackName(track.id, newName || `${index + 1}`)
-    console.log(`Track ${track.id} renamed to: ${newName || index + 1}`)
+    console.log(`Track ${track.id} renamed to: ${newName || `${index + 1}`}`)
   }
 
   return (
@@ -318,21 +324,198 @@ export default function Track({ track, index }: TrackProps) {
               </Button>
 
               {/* Bottom - Settings (spans 2 columns) */}
-              <Button
-                size="icon"
-                variant="ghost"
-                className={cn(
-                  "h-5 w-10 col-span-2 rounded-md transition-all duration-300",
-                  isSelected && "bg-blue-500/90 shadow-md shadow-blue-500/50",
-                  "hover:bg-white/20",
-                )}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedTrackId(track.id)
-                }}
-              >
-                <Settings className="h-2.5 w-2.5 text-white" />
-              </Button>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-5 w-10 col-span-2 rounded-md transition-all duration-300",
+                      isSelected && "bg-blue-500/90 shadow-md shadow-blue-500/50",
+                      "hover:bg-white/20",
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Settings className="h-2.5 w-2.5 text-white" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side={isMobile ? "bottom" : "right"} className={cn(
+                  isMobile ? "h-[80vh]" : "w-[400px]"
+                )}>
+                  <SheetHeader>
+                    <SheetTitle>{track.name || `Track ${index + 1}`}</SheetTitle>
+                  </SheetHeader>
+                  <div className="space-y-6 mt-6">
+                    {/* Volume Control */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Volume</Label>
+                        <span className="text-sm">{Math.round(track.volume * 100)}%</span>
+                      </div>
+                      <Slider
+                        value={[track.volume * 100]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={handleVolumeChange}
+                      />
+                    </div>
+
+                    {/* Effects */}
+                    <div className="space-y-4">
+                      <h4 className="font-medium">Effects</h4>
+                      
+                      {/* Reverb */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Reverb</Label>
+                          <Switch
+                            checked={track.effects.reverb.enabled}
+                            onCheckedChange={(checked) => handleEffectToggle("reverb", checked)}
+                          />
+                        </div>
+                        {track.effects.reverb.enabled && (
+                          <div className="space-y-2 pl-4">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Wet</Label>
+                              <span className="text-sm">{Math.round(track.effects.reverb.wet * 100)}%</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.reverb.wet * 100]}
+                              min={0}
+                              max={100}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("reverb", "wet", value[0] / 100)}
+                            />
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Decay</Label>
+                              <span className="text-sm">{track.effects.reverb.decay.toFixed(1)}s</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.reverb.decay * 10]}
+                              min={1}
+                              max={100}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("reverb", "decay", value[0] / 10)}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Delay */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Delay</Label>
+                          <Switch
+                            checked={track.effects.delay.enabled}
+                            onCheckedChange={(checked) => handleEffectToggle("delay", checked)}
+                          />
+                        </div>
+                        {track.effects.delay.enabled && (
+                          <div className="space-y-2 pl-4">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Time</Label>
+                              <span className="text-sm">{(track.effects.delay.time * 1000).toFixed(0)}ms</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.delay.time * 100]}
+                              min={1}
+                              max={100}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("delay", "time", value[0] / 100)}
+                            />
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Feedback</Label>
+                              <span className="text-sm">{Math.round(track.effects.delay.feedback * 100)}%</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.delay.feedback * 100]}
+                              min={0}
+                              max={99}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("delay", "feedback", value[0] / 100)}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* EQ */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>EQ</Label>
+                          <Switch
+                            checked={track.effects.eq.enabled}
+                            onCheckedChange={(checked) => handleEffectToggle("eq", checked)}
+                          />
+                        </div>
+                        {track.effects.eq.enabled && (
+                          <div className="space-y-2 pl-4">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Low</Label>
+                              <span className="text-sm">{track.effects.eq.low}dB</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.eq.low]}
+                              min={-12}
+                              max={12}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("eq", "low", value[0])}
+                            />
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Mid</Label>
+                              <span className="text-sm">{track.effects.eq.mid}dB</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.eq.mid]}
+                              min={-12}
+                              max={12}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("eq", "mid", value[0])}
+                            />
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">High</Label>
+                              <span className="text-sm">{track.effects.eq.high}dB</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.eq.high]}
+                              min={-12}
+                              max={12}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("eq", "high", value[0])}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Distortion */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Distortion</Label>
+                          <Switch
+                            checked={track.effects.distortion.enabled}
+                            onCheckedChange={(checked) => handleEffectToggle("distortion", checked)}
+                          />
+                        </div>
+                        {track.effects.distortion.enabled && (
+                          <div className="space-y-2 pl-4">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm">Amount</Label>
+                              <span className="text-sm">{Math.round(track.effects.distortion.amount * 100)}%</span>
+                            </div>
+                            <Slider
+                              value={[track.effects.distortion.amount * 100]}
+                              min={0}
+                              max={100}
+                              step={1}
+                              onValueChange={(value) => handleEffectParamChange("distortion", "amount", value[0] / 100)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
         </motion.div>
