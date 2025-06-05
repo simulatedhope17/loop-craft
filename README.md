@@ -62,16 +62,3 @@ To run the application in development mode:
 npm run dev
 ```
 
-This will start the development server, and you can access the application in your browser, typically at `http://localhost:3000`.
-
-## Contributing
-
-We welcome contributions to LoopCraft! Please see [CONTRIBUTING.md](CONTRIBUTING.md) (coming soon) for details on how to contribute.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE) (coming soon).
-
----
-
-This README will be updated as the project progresses and features are implemented. 
